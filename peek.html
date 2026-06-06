@@ -99,6 +99,40 @@
             100% { transform: scale(0.8); opacity: 0.3; }
         }
 
+        #debug-console {
+            position: absolute;
+            bottom: 24px;
+            left: 24px;
+            right: 24px;
+            height: 200px;
+            background: rgba(15, 15, 15, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            z-index: 5;
+            padding: 16px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: auto;
+        }
+
+        .log-entry {
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 0;
+        }
+
+        .log-system { color: #888888; }
+        .log-success { color: #4ade80; }
+        .log-error { color: #f87171; }
+        .log-info { color: #60a5fa; }
+
         #settings-modal {
             position: fixed;
             top: 0;
@@ -228,6 +262,8 @@
 
     <div id="main-view"></div>
 
+    <div id="debug-console"></div>
+
     <div id="loader">
         <div class="pulse"></div>
     </div>
@@ -293,6 +329,7 @@
         const db = getDatabase(app);
 
         const mainView = document.getElementById('main-view');
+        const debugConsole = document.getElementById('debug-console');
         const resultView = document.getElementById('result-view');
         const resultText = document.getElementById('result-text');
         const resultImage = document.getElementById('result-image');
@@ -311,6 +348,15 @@
         let currentBase64Image = null;
         let isProcessing = false;
 
+        function appendLog(message, type = 'system') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const time = new Date().toLocaleTimeString('id-ID', { hour12: false });
+            entry.textContent = `[${time}] ${message}`;
+            debugConsole.appendChild(entry);
+            debugConsole.scrollTop = debugConsole.scrollHeight;
+        }
+
         function showToast(message) {
             toast.textContent = message;
             toast.classList.add('show');
@@ -324,6 +370,7 @@
             inputModelGenerate.value = localStorage.getItem('ps_model_generate') || 'imagen-3.0-generate-001';
             inputPrompt.value = localStorage.getItem('ps_prompt') || 'Jelaskan gambar ini secara singkat.';
             togglePromptVisibility();
+            appendLog('Aplikasi dimulai. Pengaturan dimuat.', 'system');
         }
 
         function togglePromptVisibility() {
@@ -335,6 +382,10 @@
         }
 
         inputMode.addEventListener('change', togglePromptVisibility);
+
+        debugConsole.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+        });
 
         let tapCount = 0;
         let tapTimeout;
@@ -386,6 +437,7 @@
             localStorage.setItem('ps_prompt', inputPrompt.value.trim());
             settingsModal.classList.remove('active');
             showToast('Pengaturan disimpan');
+            appendLog('Pengaturan disimpan oleh pengguna.', 'info');
             if (currentBase64Image) processImage();
         });
 
@@ -394,8 +446,10 @@
             const data = snapshot.val();
             if (data && data.base64) {
                 currentBase64Image = data.base64;
+                appendLog('Gambar baru diterima dari Firebase (base64).', 'info');
             } else if (data && data.imageData) {
                 currentBase64Image = data.imageData;
+                appendLog('Gambar baru diterima dari Firebase (imageData).', 'info');
             }
         });
 
@@ -408,15 +462,22 @@
 
             if (!apiKey) {
                 showToast('API Key belum diatur');
+                appendLog('Proses dibatalkan: API Key belum diatur.', 'error');
                 return;
             }
-            if (!currentBase64Image || isProcessing) return;
+            if (!currentBase64Image) {
+                appendLog('Proses dibatalkan: Belum ada gambar dari Firebase.', 'error');
+                return;
+            }
+            if (isProcessing) return;
 
             isProcessing = true;
             loader.style.display = 'block';
             resultView.classList.remove('active');
             resultText.style.display = 'none';
             resultImage.style.display = 'none';
+
+            appendLog(`Memulai proses mode: ${mode}`, 'system');
 
             try {
                 const cleanBase64 = currentBase64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
@@ -438,6 +499,8 @@
                         }]
                     };
 
+                    appendLog(`Payload terkirim ke ${modelPeek}`, 'info');
+
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -445,7 +508,13 @@
                     });
 
                     const resData = await response.json();
-                    if (!response.ok) throw new Error(resData.error?.message || 'Gagal memproses ke Gemini');
+                    
+                    if (!response.ok) {
+                        appendLog(`Error API: ${JSON.stringify(resData, null, 2)}`, 'error');
+                        throw new Error(resData.error?.message || 'Gagal memproses ke Gemini');
+                    }
+
+                    appendLog(`Respon sukses: ${JSON.stringify(resData, null, 2)}`, 'success');
 
                     const textOutput = resData.candidates[0].content.parts[0].text;
                     resultText.textContent = textOutput;
@@ -472,14 +541,23 @@
                         aspectRatio: "1:1"
                     };
 
+                    const finalPayload = modelGenerate.includes('imagen') ? payloadAlternative : payload;
+                    appendLog(`Payload terkirim ke ${modelGenerate}`, 'info');
+
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(modelGenerate.includes('imagen') ? payloadAlternative : payload)
+                        body: JSON.stringify(finalPayload)
                     });
 
                     const resData = await response.json();
-                    if (!response.ok) throw new Error(resData.error?.message || 'Gagal membuat gambar');
+
+                    if (!response.ok) {
+                        appendLog(`Error API: ${JSON.stringify(resData, null, 2)}`, 'error');
+                        throw new Error(resData.error?.message || 'Gagal membuat gambar');
+                    }
+
+                    appendLog(`Respon sukses diterima (data disembunyikan karena terlalu panjang)`, 'success');
 
                     const generatedBase64 = resData.generatedImages ? resData.generatedImages[0].image.imageBytes : resData.predictions[0].bytesBase64Encoded;
                     resultImage.src = `data:image/jpeg;base64,${generatedBase64}`;
@@ -489,6 +567,7 @@
                 resultView.classList.add('active');
 
             } catch (error) {
+                appendLog(`Catch Error: ${error.message}`, 'error');
                 showToast(`Error: ${error.message}`);
             } finally {
                 isProcessing = false;
