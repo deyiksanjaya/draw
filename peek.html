@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>PeekScreen</title>
@@ -232,7 +232,7 @@
 
     <div id="result-view">
         <div id="result-text"></div>
-        <img id="result-image" src="" alt="Result">
+        <img id="result-image" src="" alt="">
     </div>
 
     <div id="settings-modal">
@@ -280,73 +280,51 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        let currentBase64Image = null;
-        let isProcessing = false;
-        let settingsOpen = false;
-
-        onValue(ref(db, 'magic_sync/current_canvas'), (snapshot) => {
-            const data = snapshot.val();
-            if (data && data.imageData) {
-                currentBase64Image = data.imageData;
-            }
-        });
-
+        const mainView = document.getElementById('main-view');
+        const resultView = document.getElementById('result-view');
+        const resultText = document.getElementById('result-text');
+        const resultImage = document.getElementById('result-image');
+        const loader = document.getElementById('loader');
         const settingsModal = document.getElementById('settings-modal');
+        const toast = document.getElementById('toast');
+
         const inputApiKey = document.getElementById('input-apikey');
         const inputMode = document.getElementById('input-mode');
         const inputPrompt = document.getElementById('input-prompt');
         const promptContainer = document.getElementById('prompt-container');
-        const loader = document.getElementById('loader');
-        const resultView = document.getElementById('result-view');
-        const resultText = document.getElementById('result-text');
-        const resultImage = document.getElementById('result-image');
-        const toastEl = document.getElementById('toast');
+        const btnSave = document.getElementById('btn-save');
 
-        inputApiKey.value = localStorage.getItem('gemini_api_key') || '';
-        inputMode.value = localStorage.getItem('app_mode') || 'peek';
-        inputPrompt.value = localStorage.getItem('app_prompt') || '';
-
-        function updatePromptVisibility() {
-            promptContainer.style.display = inputMode.value === 'generate' ? 'block' : 'none';
-        }
-        
-        inputMode.addEventListener('change', updatePromptVisibility);
-        updatePromptVisibility();
+        let currentBase64Image = null;
+        let isProcessing = false;
 
         function showToast(message) {
-            toastEl.textContent = message;
-            toastEl.classList.add('show');
-            setTimeout(() => {
-                toastEl.classList.remove('show');
-            }, 3000);
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
         }
 
-        function openSettings() {
-            settingsModal.classList.add('active');
-            settingsOpen = true;
+        function loadSettings() {
+            inputApiKey.value = localStorage.getItem('ps_apikey') || '';
+            inputMode.value = localStorage.getItem('ps_mode') || 'peek';
+            inputPrompt.value = localStorage.getItem('ps_prompt') || 'Jelaskan gambar ini secara singkat.';
+            togglePromptVisibility();
         }
 
-        document.getElementById('btn-save').addEventListener('click', () => {
-            localStorage.setItem('gemini_api_key', inputApiKey.value.trim());
-            localStorage.setItem('app_mode', inputMode.value);
-            localStorage.setItem('app_prompt', inputPrompt.value.trim());
-            settingsModal.classList.remove('active');
-            setTimeout(() => { settingsOpen = false; }, 300);
-            showToast('Tersimpan');
-        });
-
-        settingsModal.addEventListener('click', (e) => {
-            if (e.target === settingsModal) {
-                settingsModal.classList.remove('active');
-                setTimeout(() => { settingsOpen = false; }, 300);
+        function togglePromptVisibility() {
+            if (inputMode.value === 'generate') {
+                promptContainer.style.display = 'block';
+            } else {
+                promptContainer.style.display = 'none';
             }
-        });
+        }
+
+        inputMode.addEventListener('change', togglePromptVisibility);
 
         let tapCount = 0;
         let tapTimeout;
-
+        
         window.addEventListener('touchend', (e) => {
-            if (settingsOpen || isProcessing) return;
+            if (settingsModal.classList.contains('active') || isProcessing) return;
             
             tapCount++;
             
@@ -357,13 +335,19 @@
             } else if (tapCount === 2) {
                 clearTimeout(tapTimeout);
                 tapTimeout = setTimeout(() => {
-                    handleDoubleTap();
+                    processImage();
                     tapCount = 0;
                 }, 250);
             } else if (tapCount === 3) {
                 clearTimeout(tapTimeout);
-                openSettings();
+                settingsModal.classList.add('active');
                 tapCount = 0;
+            }
+        });
+
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.classList.remove('active');
             }
         });
 
@@ -378,107 +362,107 @@
             }
         });
 
-        async function fetchWithRetry(url, options, retries = 5) {
-            let delay = 1000;
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const response = await fetch(url, options);
-                    if (!response.ok) throw new Error(response.status);
-                    return await response.json();
-                } catch (error) {
-                    if (i === retries - 1) throw error;
-                    await new Promise(res => setTimeout(res, delay));
-                    delay *= 2;
-                }
-            }
-        }
+        btnSave.addEventListener('click', () => {
+            localStorage.setItem('ps_apikey', inputApiKey.value.trim());
+            localStorage.setItem('ps_mode', inputMode.value);
+            localStorage.setItem('ps_prompt', inputPrompt.value.trim());
+            settingsModal.classList.remove('active');
+            showToast('Pengaturan disimpan');
+            if (currentBase64Image) processImage();
+        });
 
-        async function handleDoubleTap() {
-            const apiKey = localStorage.getItem('gemini_api_key');
-            const mode = localStorage.getItem('app_mode') || 'peek';
-            const prompt = localStorage.getItem('app_prompt');
+        const screenRef = ref(db, 'current_screen');
+        onValue(screenRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.base64) {
+                currentBase64Image = data.base64;
+            }
+        });
+
+        async function processImage() {
+            const apiKey = localStorage.getItem('ps_apikey');
+            const mode = localStorage.getItem('ps_mode') || 'peek';
+            const promptText = localStorage.getItem('ps_prompt') || 'Jelaskan gambar ini secara singkat.';
 
             if (!apiKey) {
-                showToast('API Key kosong');
+                showToast('API Key belum diatur');
                 return;
             }
-            if (!currentBase64Image) {
-                showToast('Belum ada data');
-                return;
-            }
+            if (!currentBase64Image || isProcessing) return;
 
             isProcessing = true;
             loader.style.display = 'block';
+            resultView.classList.remove('active');
+            resultText.style.display = 'none';
+            resultImage.style.display = 'none';
 
             try {
-                const cleanBase64 = currentBase64Image.split(',')[1];
-                
                 if (mode === 'peek') {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                    const url = `https://googleapis.com${apiKey}`;
+                    
                     const payload = {
                         contents: [{
-                            role: "user",
                             parts: [
-                                { text: "Deskripsikan singkat gambar ini." },
-                                { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } }
+                                { text: promptText },
+                                {
+                                    inlineData: {
+                                        mimeType: "image/jpeg",
+                                        data: currentBase64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "")
+                                    }
+                                }
                             ]
                         }]
                     };
 
-                    const data = await fetchWithRetry(url, {
+                    const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
-                    const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (textOutput) {
-                        resultText.textContent = textOutput;
-                        resultText.style.display = 'block';
-                        resultImage.style.display = 'none';
-                        resultView.classList.add('active');
-                    }
-                } else {
-                    if (!prompt) {
-                        showToast('Prompt kosong');
-                        isProcessing = false;
-                        loader.style.display = 'none';
-                        return;
-                    }
+                    const resData = await response.json();
+                    if (!response.ok) throw new Error(resData.error?.message || 'Gagal memproses ke Gemini');
 
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`;
+                    const textOutput = resData.candidates[0].content.parts[0].text;
+                    resultText.textContent = textOutput;
+                    resultText.style.display = 'block';
+
+                } else if (mode === 'generate') {
+                    const url = `https://googleapis.com${apiKey}`;
+                    
                     const payload = {
-                        contents: [{
-                            role: "user",
-                            parts: [
-                                { text: prompt },
-                                { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } }
-                            ]
-                        }],
-                        generationConfig: { responseModalities: ["IMAGE"] }
+                        prompt: promptText,
+                        numberOfImages: 1,
+                        outputMimeType: "image/jpeg",
+                        aspectRatio: "1:1"
                     };
 
-                    const data = await fetchWithRetry(url, {
+                    const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
-                    const outputBase64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-                    if (outputBase64) {
-                        resultImage.src = `data:image/jpeg;base64,${outputBase64}`;
-                        resultImage.style.display = 'block';
-                        resultText.style.display = 'none';
-                        resultView.classList.add('active');
-                    }
+                    const resData = await response.json();
+                    if (!response.ok) throw new Error(resData.error?.message || 'Gagal membuat gambar');
+
+                    const generatedBase64 = resData.generatedImages[0].image.imageBytes;
+                    resultImage.src = `data:image/jpeg;base64,${generatedBase64}`;
+                    resultImage.style.display = 'block';
                 }
+
+                resultView.classList.add('active');
+
             } catch (error) {
-                showToast('Terjadi kesalahan');
+                console.error(error);
+                showToast(`Error: ${error.message}`);
             } finally {
                 isProcessing = false;
                 loader.style.display = 'none';
             }
         }
+
+        loadSettings();
     </script>
 </body>
 </html>
