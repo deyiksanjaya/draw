@@ -441,7 +441,7 @@
             if (currentBase64Image) processImage();
         });
 
-        const screenRef = ref(db, 'current_screen');
+        const screenRef = ref(db, 'magic_sync/current_canvas');
         onValue(screenRef, (snapshot) => {
             const data = snapshot.val();
             if (data && data.base64) {
@@ -514,7 +514,7 @@
                         throw new Error(resData.error?.message || 'Gagal memproses ke Gemini');
                     }
 
-                    appendLog(`Respon sukses: ${JSON.stringify(resData, null, 2)}`, 'success');
+                    appendLog(`Respon sukses diterima.`, 'success');
 
                     const textOutput = resData.candidates[0].content.parts[0].text;
                     resultText.textContent = textOutput;
