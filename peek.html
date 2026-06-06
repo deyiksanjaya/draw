@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>PeekScreen</title>
@@ -50,7 +50,7 @@
             background: #000000;
             align-items: center;
             justify-content: center;
-            padding: 24px;
+            padding: 32px;
             opacity: 0;
             transition: opacity 0.4s ease;
         }
@@ -64,9 +64,27 @@
             font-size: 18px;
             line-height: 1.6;
             color: #f1f3f5;
-            text-align: center;
-            max-width: 90%;
+            max-width: 85%;
             display: none;
+            text-align: left;
+        }
+
+        #result-text p {
+            margin: 0 0 12px 0;
+        }
+
+        #result-text ul {
+            margin: 0 0 12px 0;
+            padding-left: 24px;
+        }
+
+        #result-text li {
+            margin-bottom: 8px;
+        }
+
+        #result-text strong {
+            font-weight: 700;
+            color: #ffffff;
         }
 
         #result-image {
@@ -74,6 +92,7 @@
             height: 100%;
             object-fit: contain;
             display: none;
+            filter: invert(1);
         }
 
         #loader {
@@ -216,10 +235,6 @@
             background-size: 16px;
         }
 
-        #prompt-container {
-            display: none;
-        }
-
         .btn-save {
             width: 100%;
             padding: 16px;
@@ -285,24 +300,14 @@
             <div class="input-group">
                 <label>Mode</label>
                 <select id="input-mode" class="input-control">
-                    <option value="peek">Analisa</option>
-                    <option value="generate">Buat Gambar</option>
+                    <option value="text">Analisa Teks</option>
+                    <option value="image">Tampilkan Sketsa</option>
                 </select>
             </div>
 
-            <div class="input-group">
+            <div class="input-group" id="group-model">
                 <label>Model Analisa</label>
-                <input type="text" id="input-model-peek" class="input-control" autocomplete="off" placeholder="gemini-1.5-flash">
-            </div>
-
-            <div class="input-group">
-                <label>Model Generate</label>
-                <input type="text" id="input-model-generate" class="input-control" autocomplete="off" placeholder="gemini-3.1-flash-image-preview">
-            </div>
-
-            <div class="input-group" id="prompt-container">
-                <label>Prompt</label>
-                <input type="text" id="input-prompt" class="input-control" autocomplete="off">
+                <input type="text" id="input-model" class="input-control" autocomplete="off" placeholder="gemini-1.5-flash">
             </div>
 
             <button class="btn-save" id="btn-save">Simpan</button>
@@ -339,10 +344,8 @@
 
         const inputApiKey = document.getElementById('input-apikey');
         const inputMode = document.getElementById('input-mode');
-        const inputModelPeek = document.getElementById('input-model-peek');
-        const inputModelGenerate = document.getElementById('input-model-generate');
-        const inputPrompt = document.getElementById('input-prompt');
-        const promptContainer = document.getElementById('prompt-container');
+        const inputModel = document.getElementById('input-model');
+        const groupModel = document.getElementById('group-model');
         const btnSave = document.getElementById('btn-save');
 
         let currentBase64Image = null;
@@ -365,23 +368,21 @@
 
         function loadSettings() {
             inputApiKey.value = localStorage.getItem('ps_apikey') || '';
-            inputMode.value = localStorage.getItem('ps_mode') || 'peek';
-            inputModelPeek.value = localStorage.getItem('ps_model_peek') || 'gemini-1.5-flash';
-            inputModelGenerate.value = localStorage.getItem('ps_model_generate') || 'gemini-3.1-flash-image-preview';
-            inputPrompt.value = localStorage.getItem('ps_prompt') || 'Jelaskan gambar ini secara singkat.';
-            togglePromptVisibility();
+            inputMode.value = localStorage.getItem('ps_mode') || 'text';
+            inputModel.value = localStorage.getItem('ps_model') || 'gemini-1.5-flash';
+            toggleModelVisibility();
             appendLog('Aplikasi dimulai. Pengaturan dimuat.', 'system');
         }
 
-        function togglePromptVisibility() {
-            if (inputMode.value === 'generate') {
-                promptContainer.style.display = 'block';
+        function toggleModelVisibility() {
+            if (inputMode.value === 'text') {
+                groupModel.style.display = 'block';
             } else {
-                promptContainer.style.display = 'none';
+                groupModel.style.display = 'none';
             }
         }
 
-        inputMode.addEventListener('change', togglePromptVisibility);
+        inputMode.addEventListener('change', toggleModelVisibility);
 
         debugConsole.addEventListener('touchend', (e) => {
             e.stopPropagation();
@@ -402,7 +403,7 @@
             } else if (tapCount === 2) {
                 clearTimeout(tapTimeout);
                 tapTimeout = setTimeout(() => {
-                    processImage();
+                    processData();
                     tapCount = 0;
                 }, 250);
             } else if (tapCount === 3) {
@@ -425,6 +426,7 @@
                     resultText.style.display = 'none';
                     resultImage.style.display = 'none';
                     resultImage.src = '';
+                    resultText.innerHTML = '';
                 }, 400);
             }
         });
@@ -432,13 +434,11 @@
         btnSave.addEventListener('click', () => {
             localStorage.setItem('ps_apikey', inputApiKey.value.trim());
             localStorage.setItem('ps_mode', inputMode.value);
-            localStorage.setItem('ps_model_peek', inputModelPeek.value.trim());
-            localStorage.setItem('ps_model_generate', inputModelGenerate.value.trim());
-            localStorage.setItem('ps_prompt', inputPrompt.value.trim());
+            localStorage.setItem('ps_model', inputModel.value.trim());
             settingsModal.classList.remove('active');
             showToast('Pengaturan disimpan');
             appendLog('Pengaturan disimpan oleh pengguna.', 'info');
-            if (currentBase64Image) processImage();
+            if (currentBase64Image) processData();
         });
 
         const screenRef = ref(db, 'magic_sync/current_canvas');
@@ -446,34 +446,48 @@
             const data = snapshot.val();
             if (data && data.base64) {
                 currentBase64Image = data.base64;
-                appendLog('Gambar baru diterima dari Firebase (base64).', 'info');
+                appendLog('Gambar baru diterima dari Firebase.', 'info');
             } else if (data && data.imageData) {
                 currentBase64Image = data.imageData;
-                appendLog('Gambar baru diterima dari Firebase (imageData).', 'info');
+                appendLog('Gambar baru diterima dari Firebase.', 'info');
             }
         });
 
-        resultImage.onload = () => {
-            appendLog('Gambar sukses dirender browser.', 'success');
-        };
+        function formatMarkdown(text) {
+            let processedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                    .replace(/\*(.*?)\*/g, '<strong>$1</strong>');
+            
+            let lines = processedText.split('\n');
+            let finalHtml = '';
+            let inList = false;
 
-        resultImage.onerror = () => {
-            appendLog('Browser gagal merender data base64.', 'error');
-            showToast('Gagal memuat gambar');
-        };
+            lines.forEach(line => {
+                let trimmed = line.trim();
+                if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                    if (!inList) {
+                        finalHtml += '<ul>';
+                        inList = true;
+                    }
+                    finalHtml += `<li>${trimmed.substring(2).trim()}</li>`;
+                } else if (trimmed !== '') {
+                    if (inList) {
+                        finalHtml += '</ul>';
+                        inList = false;
+                    }
+                    finalHtml += `<p>${trimmed}</p>`;
+                }
+            });
 
-        async function processImage() {
-            const apiKey = localStorage.getItem('ps_apikey');
-            const mode = localStorage.getItem('ps_mode') || 'peek';
-            const modelPeek = localStorage.getItem('ps_model_peek') || 'gemini-1.5-flash';
-            const modelGenerate = localStorage.getItem('ps_model_generate') || 'gemini-3.1-flash-image-preview';
-            const promptText = localStorage.getItem('ps_prompt') || 'Jelaskan gambar ini secara singkat.';
-
-            if (!apiKey) {
-                showToast('API Key belum diatur');
-                appendLog('Proses dibatalkan: API Key belum diatur.', 'error');
-                return;
+            if (inList) {
+                finalHtml += '</ul>';
             }
+
+            return finalHtml;
+        }
+
+        async function processData() {
+            const mode = localStorage.getItem('ps_mode') || 'text';
+            
             if (!currentBase64Image) {
                 appendLog('Proses dibatalkan: Belum ada gambar dari Firebase.', 'error');
                 return;
@@ -486,96 +500,74 @@
             resultText.style.display = 'none';
             resultImage.style.display = 'none';
             resultImage.src = '';
+            resultText.innerHTML = '';
 
             appendLog(`Memulai proses mode: ${mode}`, 'system');
 
             try {
-                const cleanBase64 = currentBase64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
-
-                if (mode === 'peek') {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelPeek}:generateContent?key=${apiKey}`;
-                    
-                    const payload = {
-                        contents: [{
-                            parts: [
-                                { text: promptText },
-                                {
-                                    inlineData: {
-                                        mimeType: "image/jpeg",
-                                        data: cleanBase64
-                                    }
-                                }
-                            ]
-                        }]
-                    };
-
-                    appendLog(`Payload terkirim ke ${modelPeek}`, 'info');
-
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const resData = await response.json();
-                    
-                    if (!response.ok) {
-                        appendLog(`Error API: ${JSON.stringify(resData, null, 2)}`, 'error');
-                        throw new Error(resData.error?.message || 'Gagal memproses ke Gemini');
-                    }
-
-                    appendLog(`Respon sukses diterima.`, 'success');
-
-                    const textOutput = resData.candidates[0].content.parts[0].text;
-                    resultText.textContent = textOutput;
-                    resultText.style.display = 'block';
-
-                } else if (mode === 'generate') {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelGenerate}:generateImages?key=${apiKey}`;
-                    
-                    const payload = {
-                        prompt: promptText,
-                        numberOfImages: 1,
-                        outputMimeType: "image/jpeg",
-                        aspectRatio: "1:1"
-                    };
-
-                    appendLog(`Payload terkirim ke ${modelGenerate}`, 'info');
-
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const resData = await response.json();
-
-                    if (!response.ok) {
-                        appendLog(`Error API: ${JSON.stringify(resData, null, 2)}`, 'error');
-                        throw new Error(resData.error?.message || 'Gagal membuat gambar');
-                    }
-
-                    appendLog(`Respon sukses diterima (mengekstrak gambar)`, 'success');
-
-                    const imgObj = resData.generatedImages[0];
-                    let generatedBase64 = imgObj.image?.imageBytes || imgObj.imageBytes;
-
-                    if (!generatedBase64) {
-                        throw new Error('Data gambar tidak ditemukan dalam respon.');
-                    }
-
-                    generatedBase64 = generatedBase64.replace(/[\n\r\s]/g, '');
-                    const mimeType = generatedBase64.startsWith('iVBO') ? 'image/png' : 'image/jpeg';
-                    
-                    resultImage.src = `data:${mimeType};base64,${generatedBase64}`;
+                if (mode === 'image') {
+                    resultImage.src = currentBase64Image;
                     resultImage.style.display = 'block';
+                    resultView.classList.add('active');
+                    appendLog('Sketsa ditampilkan langsung.', 'success');
+                    isProcessing = false;
+                    loader.style.display = 'none';
+                    return;
                 }
 
+                const apiKey = localStorage.getItem('ps_apikey');
+                const model = localStorage.getItem('ps_model') || 'gemini-1.5-flash';
+
+                if (!apiKey) {
+                    showToast('API Key belum diatur');
+                    appendLog('Proses dibatalkan: API Key belum diatur.', 'error');
+                    isProcessing = false;
+                    loader.style.display = 'none';
+                    return;
+                }
+
+                const cleanBase64 = currentBase64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: [{
+                        parts: [
+                            { text: "Jelaskan gambar ini sangat singkat saja. Pisahkan elemen yang berbeda ke dalam bentuk daftar poin (bullet points). Langsung ke intinya tanpa kalimat pengantar atau penutup." },
+                            {
+                                inlineData: {
+                                    mimeType: "image/jpeg",
+                                    data: cleanBase64
+                                }
+                            }
+                        ]
+                    }]
+                };
+
+                appendLog(`Meminta analisa ke ${model}...`, 'info');
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const resData = await response.json();
+                
+                if (!response.ok) {
+                    appendLog(`Error API: ${JSON.stringify(resData)}`, 'error');
+                    throw new Error(resData.error?.message || 'Gagal memproses ke Gemini');
+                }
+
+                appendLog(`Analisa sukses diterima.`, 'success');
+
+                const rawText = resData.candidates[0].content.parts[0].text;
+                resultText.innerHTML = formatMarkdown(rawText);
+                resultText.style.display = 'block';
                 resultView.classList.add('active');
 
             } catch (error) {
                 appendLog(`Catch Error: ${error.message}`, 'error');
-                showToast(`Error: ${error.message}`);
+                showToast(`Gagal: ${error.message}`);
             } finally {
                 isProcessing = false;
                 loader.style.display = 'none';
