@@ -122,40 +122,6 @@
             100% { transform: scale(0.8); opacity: 0.3; }
         }
 
-        #debug-console {
-            position: absolute;
-            bottom: 24px;
-            left: 24px;
-            right: 24px;
-            height: 200px;
-            background: rgba(15, 15, 15, 0.7);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            z-index: 105;
-            padding: 16px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 11px;
-            line-height: 1.5;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            pointer-events: auto;
-        }
-
-        .log-entry {
-            white-space: pre-wrap;
-            word-break: break-word;
-            margin: 0;
-        }
-
-        .log-system { color: #888888; }
-        .log-success { color: #4ade80; }
-        .log-error { color: #f87171; }
-        .log-info { color: #60a5fa; }
-
         #settings-modal {
             position: fixed;
             top: 0;
@@ -283,8 +249,6 @@
         <img id="realtime-image" src="" alt="">
     </div>
 
-    <div id="debug-console"></div>
-
     <div id="loader">
         <div class="pulse"></div>
     </div>
@@ -345,7 +309,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        const debugConsole = document.getElementById('debug-console');
         const realtimeImage = document.getElementById('realtime-image');
         const resultView = document.getElementById('result-view');
         const resultText = document.getElementById('result-text');
@@ -363,15 +326,6 @@
         let currentBase64Image = null;
         let isProcessing = false;
 
-        function appendLog(message, type = 'system') {
-            const entry = document.createElement('div');
-            entry.className = `log-entry log-${type}`;
-            const time = new Date().toLocaleTimeString('id-ID', { hour12: false });
-            entry.textContent = `[${time}] ${message}`;
-            debugConsole.appendChild(entry);
-            debugConsole.scrollTop = debugConsole.scrollHeight;
-        }
-
         function showToast(message) {
             toast.textContent = message;
             toast.classList.add('show');
@@ -385,7 +339,6 @@
             inputPrompt.value = localStorage.getItem('ps_prompt') || 'Jelaskan gambar ini sangat singkat saja. Pisahkan elemen yang berbeda ke dalam bentuk daftar poin. Langsung ke intinya.';
             toggleSettingsVisibility();
             applyModeBehavior();
-            appendLog('Aplikasi dimulai. Pengaturan dimuat.', 'system');
         }
 
         function toggleSettingsVisibility() {
@@ -407,10 +360,6 @@
         }
 
         inputMode.addEventListener('change', toggleSettingsVisibility);
-
-        debugConsole.addEventListener('touchend', (e) => {
-            e.stopPropagation();
-        });
 
         let tapCount = 0;
         let tapTimeout;
@@ -463,7 +412,6 @@
             localStorage.setItem('ps_prompt', inputPrompt.value.trim());
             settingsModal.classList.remove('active');
             showToast('Pengaturan disimpan');
-            appendLog('Pengaturan disimpan oleh pengguna.', 'info');
             applyModeBehavior();
             
             if (inputMode.value === 'image' && currentBase64Image) {
@@ -478,10 +426,8 @@
             
             if (data && data.base64) {
                 newImage = data.base64;
-                appendLog('Pembaruan gambar dari Firebase.', 'info');
             } else if (data && data.imageData) {
                 newImage = data.imageData;
-                appendLog('Pembaruan gambar dari Firebase.', 'info');
             }
 
             if (newImage) {
@@ -527,7 +473,6 @@
 
         async function processData() {
             if (!currentBase64Image) {
-                appendLog('Proses dibatalkan: Belum ada gambar dari Firebase.', 'error');
                 return;
             }
             if (isProcessing) return;
@@ -538,7 +483,6 @@
 
             if (!apiKey) {
                 showToast('API Key belum diatur');
-                appendLog('Proses dibatalkan: API Key belum diatur.', 'error');
                 return;
             }
 
@@ -547,8 +491,6 @@
             resultView.classList.remove('active');
             resultText.style.display = 'none';
             resultText.innerHTML = '';
-
-            appendLog(`Meminta analisa teks ke ${model}...`, 'info');
 
             try {
                 const cleanBase64 = currentBase64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
@@ -577,11 +519,8 @@
                 const resData = await response.json();
                 
                 if (!response.ok) {
-                    appendLog(`Error API: ${JSON.stringify(resData)}`, 'error');
                     throw new Error(resData.error?.message || 'Gagal memproses ke Gemini');
                 }
-
-                appendLog(`Analisa sukses diterima.`, 'success');
 
                 const rawText = resData.candidates[0].content.parts[0].text;
                 resultText.innerHTML = formatMarkdown(rawText);
@@ -589,7 +528,6 @@
                 resultView.classList.add('active');
 
             } catch (error) {
-                appendLog(`Catch Error: ${error.message}`, 'error');
                 showToast(`Gagal: ${error.message}`);
             } finally {
                 isProcessing = false;
