@@ -369,7 +369,7 @@
         function loadSettings() {
             inputApiKey.value = localStorage.getItem('ps_apikey') || '';
             inputMode.value = localStorage.getItem('ps_mode') || 'text';
-            inputModel.value = localStorage.getItem('ps_model') || 'gemini-1.5-flash';
+            inputModel.value = localStorage.getItem('ps_model') || 'gemini-3.5-flash';
             toggleModelVisibility();
             appendLog('Aplikasi dimulai. Pengaturan dimuat.', 'system');
         }
@@ -516,7 +516,7 @@
                 }
 
                 const apiKey = localStorage.getItem('ps_apikey');
-                const model = localStorage.getItem('ps_model') || 'gemini-1.5-flash';
+                const model = localStorage.getItem('ps_model') || 'gemini-3.5-flash';
 
                 if (!apiKey) {
                     showToast('API Key belum diatur');
