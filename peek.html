@@ -521,7 +521,7 @@
                     resultText.style.display = 'block';
 
                 } else if (mode === 'generate') {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelGenerate}:predict?key=${apiKey}`;
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelGenerate}:generateContent?key=${apiKey}`;
                     
                     const payload = {
                         instances: [
