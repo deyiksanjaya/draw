@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>PeekScreen</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #ffffff;
+            overflow: hidden;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #main-view {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000000;
+        }
+
+        #result-view {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: none;
+            background: #000000;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        #result-view.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        #result-text {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #f1f3f5;
+            text-align: center;
+            max-width: 90%;
+            display: none;
+        }
+
+        #result-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none;
+        }
+
+        #loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 50;
+            display: none;
+        }
+
+        .pulse {
+            width: 12px;
+            height: 12px;
+            background-color: #ffffff;
+            border-radius: 50%;
+            animation: pulse-anim 1.5s infinite ease-in-out;
+        }
+
+        @keyframes pulse-anim {
+            0% { transform: scale(0.8); opacity: 0.3; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.3; }
+        }
+
+        #settings-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            justify-content: flex-end;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        #settings-modal.active {
+            display: flex;
+            opacity: 1;
+        }
+
+        .modal-content {
+            background: #111111;
+            width: 100%;
+            padding: 32px 24px;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            border-top: 1px solid #222222;
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        #settings-modal.active .modal-content {
+            transform: translateY(0);
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0 0 24px 0;
+            color: #ffffff;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            color: #888888;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .input-control {
+            width: 100%;
+            background: #1a1a1a;
+            border: 1px solid #333333;
+            color: #ffffff;
+            padding: 14px 16px;
+            border-radius: 12px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+            appearance: none;
+        }
+
+        .input-control:focus {
+            border-color: #555555;
+        }
+
+        select.input-control {
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 16px center;
+            background-size: 16px;
+        }
+
+        #prompt-container {
+            display: none;
+        }
+
+        .btn-save {
+            width: 100%;
+            padding: 16px;
+            background: #ffffff;
+            color: #000000;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            margin-top: 12px;
+        }
+
+        .btn-save:active {
+            background: #e9ecef;
+        }
+
+        #toast {
+            position: fixed;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: #222222;
+            color: #ffffff;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 14px;
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 200;
+            pointer-events: none;
+        }
+
+        #toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="main-view"></div>
+
+    <div id="loader">
+        <div class="pulse"></div>
+    </div>
+
+    <div id="result-view">
+        <div id="result-text"></div>
+        <img id="result-image" src="" alt="Result">
+    </div>
+
+    <div id="settings-modal">
+        <div class="modal-content">
+            <h2 class="modal-title">Pengaturan</h2>
+            
+            <div class="input-group">
+                <label>API Key</label>
+                <input type="password" id="input-apikey" class="input-control" autocomplete="off">
+            </div>
+
+            <div class="input-group">
+                <label>Mode</label>
+                <select id="input-mode" class="input-control">
+                    <option value="peek">Analisa</option>
+                    <option value="generate">Buat Gambar</option>
+                </select>
+            </div>
+
+            <div class="input-group" id="prompt-container">
+                <label>Prompt</label>
+                <input type="text" id="input-prompt" class="input-control" autocomplete="off">
+            </div>
+
+            <button class="btn-save" id="btn-save">Simpan</button>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBsu91cGiUlZcM7bGfGLNklykH7QtG0NTw",
+            authDomain: "drawbyheri.firebaseapp.com",
+            databaseURL: "https://drawbyheri-default-rtdb.firebaseio.com",
+            projectId: "drawbyheri",
+            storageBucket: "drawbyheri.firebasestorage.app",
+            messagingSenderId: "287164271284",
+            appId: "1:287164271284:web:9eb8f29ea79d7e4e10e5e1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        let currentBase64Image = null;
+        let isProcessing = false;
+
+        onValue(ref(db, 'magic_sync/current_canvas'), (snapshot) => {
+            const data = snapshot.val();
+            if (data && data.imageData) {
+                currentBase64Image = data.imageData;
+            }
+        });
+
+        const settingsModal = document.getElementById('settings-modal');
+        const inputApiKey = document.getElementById('input-apikey');
+        const inputMode = document.getElementById('input-mode');
+        const inputPrompt = document.getElementById('input-prompt');
+        const promptContainer = document.getElementById('prompt-container');
+        const loader = document.getElementById('loader');
+        const resultView = document.getElementById('result-view');
+        const resultText = document.getElementById('result-text');
+        const resultImage = document.getElementById('result-image');
+        const toastEl = document.getElementById('toast');
+
+        inputApiKey.value = localStorage.getItem('gemini_api_key') || '';
+        inputMode.value = localStorage.getItem('app_mode') || 'peek';
+        inputPrompt.value = localStorage.getItem('app_prompt') || '';
+
+        function updatePromptVisibility() {
+            promptContainer.style.display = inputMode.value === 'generate' ? 'block' : 'none';
+        }
+        
+        inputMode.addEventListener('change', updatePromptVisibility);
+        updatePromptVisibility();
+
+        function showToast(message) {
+            toastEl.textContent = message;
+            toastEl.classList.add('show');
+            setTimeout(() => {
+                toastEl.classList.remove('show');
+            }, 3000);
+        }
+
+        let startY = 0;
+        let isTwoFingers = false;
+        let settingsOpen = false;
+
+        window.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2 && !settingsOpen) {
+                isTwoFingers = true;
+                startY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            } else {
+                isTwoFingers = false;
+            }
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            if (isTwoFingers && e.touches.length === 2 && !settingsOpen) {
+                let currentY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                if (currentY - startY > 60) {
+                    settingsModal.classList.add('active');
+                    settingsOpen = true;
+                    isTwoFingers = false;
+                }
+            }
+        });
+
+        document.getElementById('btn-save').addEventListener('click', () => {
+            localStorage.setItem('gemini_api_key', inputApiKey.value.trim());
+            localStorage.setItem('app_mode', inputMode.value);
+            localStorage.setItem('app_prompt', inputPrompt.value.trim());
+            settingsModal.classList.remove('active');
+            setTimeout(() => { settingsOpen = false; }, 300);
+            showToast('Tersimpan');
+        });
+
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.classList.remove('active');
+                setTimeout(() => { settingsOpen = false; }, 300);
+            }
+        });
+
+        let lastTap = 0;
+        window.addEventListener('touchend', (e) => {
+            if (settingsOpen || isProcessing) return;
+            
+            let currentTime = new Date().getTime();
+            let tapLength = currentTime - lastTap;
+            
+            if (tapLength < 300 && tapLength > 0) {
+                handleDoubleTap();
+                e.preventDefault();
+            }
+            lastTap = currentTime;
+        });
+
+        resultView.addEventListener('click', () => {
+            if (!isProcessing) {
+                resultView.classList.remove('active');
+                setTimeout(() => {
+                    resultText.style.display = 'none';
+                    resultImage.style.display = 'none';
+                    resultImage.src = '';
+                }, 400);
+            }
+        });
+
+        async function fetchWithRetry(url, options, retries = 5) {
+            let delay = 1000;
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) throw new Error(response.status);
+                    return await response.json();
+                } catch (error) {
+                    if (i === retries - 1) throw error;
+                    await new Promise(res => setTimeout(res, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        async function handleDoubleTap() {
+            const apiKey = localStorage.getItem('gemini_api_key');
+            const mode = localStorage.getItem('app_mode') || 'peek';
+            const prompt = localStorage.getItem('app_prompt');
+
+            if (!apiKey) {
+                showToast('API Key kosong');
+                return;
+            }
+            if (!currentBase64Image) {
+                showToast('Belum ada data');
+                return;
+            }
+
+            isProcessing = true;
+            loader.style.display = 'block';
+
+            try {
+                const cleanBase64 = currentBase64Image.split(',')[1];
+                
+                if (mode === 'peek') {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                    const payload = {
+                        contents: [{
+                            role: "user",
+                            parts: [
+                                { text: "Deskripsikan singkat gambar ini." },
+                                { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } }
+                            ]
+                        }]
+                    };
+
+                    const data = await fetchWithRetry(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const textOutput = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (textOutput) {
+                        resultText.textContent = textOutput;
+                        resultText.style.display = 'block';
+                        resultImage.style.display = 'none';
+                        resultView.classList.add('active');
+                    }
+                } else {
+                    if (!prompt) {
+                        showToast('Prompt kosong');
+                        isProcessing = false;
+                        loader.style.display = 'none';
+                        return;
+                    }
+
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`;
+                    const payload = {
+                        contents: [{
+                            role: "user",
+                            parts: [
+                                { text: prompt },
+                                { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } }
+                            ]
+                        }],
+                        generationConfig: { responseModalities: ["IMAGE"] }
+                    };
+
+                    const data = await fetchWithRetry(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const outputBase64 = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+                    if (outputBase64) {
+                        resultImage.src = `data:image/jpeg;base64,${outputBase64}`;
+                        resultImage.style.display = 'block';
+                        resultText.style.display = 'none';
+                        resultView.classList.add('active');
+                    }
+                }
+            } catch (error) {
+                showToast('Terjadi kesalahan');
+            } finally {
+                isProcessing = false;
+                loader.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
