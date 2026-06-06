@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="no">
+    <meta name="mobile-web-app-capable" content="no">
+    <title>Workspace</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #f0f2f5;
+            touch-action: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: #ffffff;
+            z-index: 1;
+        }
+
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        .floating-panel {
+            position: fixed;
+            width: 92%;
+            max-width: 400px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+            display: flex;
+            padding: 12px 16px;
+            box-sizing: border-box;
+            z-index: 100;
+        }
+
+        #top-toolbar {
+            top: 16px; 
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #bottom-palette {
+            bottom: 16px; 
+            justify-content: center;
+            gap: 16px;
+        }
+
+        .tool-btn {
+            background: transparent;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex: 1;
+            transition: all 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .tool-btn img {
+            width: 26px;
+            height: 26px;
+            opacity: 0.6;
+            transition: all 0.2s;
+        }
+
+        .tool-btn.active {
+            background: #e6f2ff;
+        }
+
+        .tool-btn.active img {
+            opacity: 1;
+            filter: invert(27%) sepia(91%) saturate(2135%) hue-rotate(205deg) brightness(97%) contrast(106%);
+        }
+
+        .tool-btn:active img {
+            transform: scale(0.85);
+        }
+
+        .divider-vertical {
+            width: 1px;
+            height: 30px;
+            background: #e9ecef;
+            margin: 0 4px;
+        }
+
+        .color-btn {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            cursor: pointer;
+            padding: 0;
+            transition: all 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            -webkit-tap-highlight-color: transparent;
+            flex-shrink: 0;
+        }
+
+        .color-btn.active {
+            border-color: #dee2e6;
+            transform: scale(1.15);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="top-toolbar" class="floating-panel">
+        <button class="tool-btn active" id="btn-pen" title="Pen">
+            <img src="https://img.icons8.com/ios-glyphs/30/333333/edit.png" alt="Pen" draggable="false">
+        </button>
+        <button class="tool-btn" id="btn-eraser" title="Eraser">
+            <img src="https://img.icons8.com/ios-glyphs/30/333333/eraser.png" alt="Eraser" draggable="false">
+        </button>
+        
+        <div class="divider-vertical"></div>
+        
+        <button class="tool-btn" id="btn-undo" title="Undo">
+            <img src="https://img.icons8.com/ios-glyphs/30/333333/undo.png" alt="Undo" draggable="false">
+        </button>
+        <button class="tool-btn" id="btn-clear" title="Clear">
+            <img src="https://img.icons8.com/ios-glyphs/30/333333/trash.png" alt="Clear" draggable="false">
+        </button>
+        <button class="tool-btn" id="btn-download" title="Export">
+            <img src="https://img.icons8.com/ios-glyphs/30/333333/download.png" alt="Export" draggable="false">
+        </button>
+    </div>
+
+    <div id="bottom-palette" class="floating-panel">
+        <button class="color-btn active" style="background-color: #212529;" data-color="#212529"></button>
+        <button class="color-btn" style="background-color: #dc3545;" data-color="#dc3545"></button>
+        <button class="color-btn" style="background-color: #0d6efd;" data-color="#0d6efd"></button>
+        <button class="color-btn" style="background-color: #198754;" data-color="#198754"></button>
+        <button class="color-btn" style="background-color: #ffc107;" data-color="#ffc107"></button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "API_KEY_ANDA",
+            authDomain: "PROJECT_ID_ANDA.firebaseapp.com",
+            databaseURL: "https://PROJECT_ID_ANDA-default-rtdb.firebaseio.com",
+            projectId: "PROJECT_ID_ANDA",
+            storageBucket: "PROJECT_ID_ANDA.appspot.com",
+            messagingSenderId: "MESSAGING_SENDER_ID_ANDA",
+            appId: "APP_ID_ANDA"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvas-container');
+
+        let isDrawing = false;
+        let syncTimer = null; 
+        
+        let currentMode = 'pen';
+        let currentColor = '#212529';
+        let strokeHistory = [];
+
+        function resizeCanvas() {
+            let tempState = null;
+            if (canvas.width > 0 && canvas.height > 0) {
+                tempState = canvas.toDataURL();
+            }
+            
+            canvas.width = canvasContainer.clientWidth;
+            canvas.height = canvasContainer.clientHeight;
+            
+            fillWhiteBackground();
+
+            if (tempState) {
+                let img = new Image();
+                img.src = tempState;
+                img.onload = () => ctx.drawImage(img, 0, 0);
+            }
+        }
+
+        function fillWhiteBackground() {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function saveHistoryState() {
+            strokeHistory.push(canvas.toDataURL());
+            if (strokeHistory.length > 20) {
+                strokeHistory.shift();
+            }
+        }
+
+        function getPos(e) {
+            if (e.touches && e.touches.length > 0) {
+                const rect = canvas.getBoundingClientRect();
+                return { 
+                    x: e.touches[0].clientX - rect.left, 
+                    y: e.touches[0].clientY - rect.top 
+                };
+            }
+            const rect = canvas.getBoundingClientRect();
+            return { 
+                x: e.clientX - rect.left, 
+                y: e.clientY - rect.top 
+            };
+        }
+
+        function startDrawing(e) {
+            e.preventDefault();
+            isDrawing = true;
+            saveHistoryState();
+            
+            const pos = getPos(e);
+            ctx.beginPath();
+            ctx.moveTo(pos.x, pos.y);
+            draw(e);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            e.preventDefault();
+            const pos = getPos(e);
+            
+            ctx.lineWidth = currentMode === 'eraser' ? 24 : 4;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = currentMode === 'eraser' ? '#ffffff' : currentColor;
+            
+            ctx.lineTo(pos.x, pos.y);
+            ctx.stroke();
+            
+            scheduleSync();
+        }
+
+        function stopDrawing(e) {
+            if (isDrawing) {
+                e.preventDefault();
+                isDrawing = false;
+                ctx.closePath();
+                scheduleSync();
+            }
+        }
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        canvas.addEventListener('touchstart', startDrawing, { passive: false });
+        canvas.addEventListener('touchmove', draw, { passive: false });
+        canvas.addEventListener('touchend', stopDrawing);
+        canvas.addEventListener('touchcancel', stopDrawing);
+
+        const topToolbar = document.getElementById('top-toolbar');
+        const bottomPalette = document.getElementById('bottom-palette');
+        
+        const stopPropagation = (e) => e.stopPropagation();
+        
+        topToolbar.addEventListener('touchstart', stopPropagation);
+        topToolbar.addEventListener('mousedown', stopPropagation);
+        bottomPalette.addEventListener('touchstart', stopPropagation);
+        bottomPalette.addEventListener('mousedown', stopPropagation);
+
+        const btnPen = document.getElementById('btn-pen');
+        const btnEraser = document.getElementById('btn-eraser');
+        const colorBtns = document.querySelectorAll('.color-btn');
+
+        btnPen.addEventListener('click', () => {
+            currentMode = 'pen';
+            btnPen.classList.add('active');
+            btnEraser.classList.remove('active');
+        });
+
+        btnEraser.addEventListener('click', () => {
+            currentMode = 'eraser';
+            btnEraser.classList.add('active');
+            btnPen.classList.remove('active');
+        });
+
+        colorBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                colorBtns.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentColor = e.target.getAttribute('data-color');
+                
+                currentMode = 'pen';
+                btnPen.classList.add('active');
+                btnEraser.classList.remove('active');
+            });
+        });
+
+        document.getElementById('btn-undo').addEventListener('click', () => {
+            if (strokeHistory.length > 0) {
+                let lastState = strokeHistory.pop();
+                let img = new Image();
+                img.src = lastState;
+                img.onload = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    fillWhiteBackground();
+                    ctx.drawImage(img, 0, 0);
+                    scheduleSync(); 
+                }
+            }
+        });
+
+        document.getElementById('btn-clear').addEventListener('click', () => {
+            saveHistoryState();
+            fillWhiteBackground();
+            scheduleSync(); 
+        });
+
+        document.getElementById('btn-download').addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'Export.jpeg';
+            link.href = canvas.toDataURL('image/jpeg', 1.0);
+            link.click();
+        });
+
+        function scheduleSync() {
+            if (syncTimer) {
+                clearTimeout(syncTimer);
+            }
+            
+            syncTimer = setTimeout(() => {
+                syncToFirebase();
+            }, 3000);
+        }
+
+        function syncToFirebase() {
+            const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+
+            set(ref(db, 'magic_sync/current_canvas'), {
+                imageData: base64Image,
+                timestamp: Date.now()
+            }).catch(() => {});
+        }
+    </script>
+</body>
+</html>
