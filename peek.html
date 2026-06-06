@@ -453,6 +453,15 @@
             }
         });
 
+        resultImage.onload = () => {
+            appendLog('Gambar sukses dirender browser.', 'success');
+        };
+
+        resultImage.onerror = () => {
+            appendLog('Browser gagal merender data base64.', 'error');
+            showToast('Gagal memuat gambar');
+        };
+
         async function processImage() {
             const apiKey = localStorage.getItem('ps_apikey');
             const mode = localStorage.getItem('ps_mode') || 'peek';
@@ -476,6 +485,7 @@
             resultView.classList.remove('active');
             resultText.style.display = 'none';
             resultImage.style.display = 'none';
+            resultImage.src = '';
 
             appendLog(`Memulai proses mode: ${mode}`, 'system');
 
@@ -545,10 +555,19 @@
                         throw new Error(resData.error?.message || 'Gagal membuat gambar');
                     }
 
-                    appendLog(`Respon sukses diterima (data disembunyikan)`, 'success');
+                    appendLog(`Respon sukses diterima (mengekstrak gambar)`, 'success');
 
-                    const generatedBase64 = resData.generatedImages[0].image.imageBytes;
-                    resultImage.src = `data:image/jpeg;base64,${generatedBase64}`;
+                    const imgObj = resData.generatedImages[0];
+                    let generatedBase64 = imgObj.image?.imageBytes || imgObj.imageBytes;
+
+                    if (!generatedBase64) {
+                        throw new Error('Data gambar tidak ditemukan dalam respon.');
+                    }
+
+                    generatedBase64 = generatedBase64.replace(/[\n\r\s]/g, '');
+                    const mimeType = generatedBase64.startsWith('iVBO') ? 'image/png' : 'image/jpeg';
+                    
+                    resultImage.src = `data:${mimeType};base64,${generatedBase64}`;
                     resultImage.style.display = 'block';
                 }
 
