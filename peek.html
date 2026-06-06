@@ -130,6 +130,8 @@
             border-top: 1px solid #222222;
             transform: translateY(100%);
             transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         #settings-modal.active .modal-content {
@@ -252,6 +254,16 @@
                 </select>
             </div>
 
+            <div class="input-group">
+                <label>Model Analisa</label>
+                <input type="text" id="input-model-peek" class="input-control" autocomplete="off" placeholder="gemini-1.5-flash">
+            </div>
+
+            <div class="input-group">
+                <label>Model Generate</label>
+                <input type="text" id="input-model-generate" class="input-control" autocomplete="off" placeholder="imagen-3.0-generate-001">
+            </div>
+
             <div class="input-group" id="prompt-container">
                 <label>Prompt</label>
                 <input type="text" id="input-prompt" class="input-control" autocomplete="off">
@@ -290,6 +302,8 @@
 
         const inputApiKey = document.getElementById('input-apikey');
         const inputMode = document.getElementById('input-mode');
+        const inputModelPeek = document.getElementById('input-model-peek');
+        const inputModelGenerate = document.getElementById('input-model-generate');
         const inputPrompt = document.getElementById('input-prompt');
         const promptContainer = document.getElementById('prompt-container');
         const btnSave = document.getElementById('btn-save');
@@ -306,6 +320,8 @@
         function loadSettings() {
             inputApiKey.value = localStorage.getItem('ps_apikey') || '';
             inputMode.value = localStorage.getItem('ps_mode') || 'peek';
+            inputModelPeek.value = localStorage.getItem('ps_model_peek') || 'gemini-1.5-flash';
+            inputModelGenerate.value = localStorage.getItem('ps_model_generate') || 'imagen-3.0-generate-001';
             inputPrompt.value = localStorage.getItem('ps_prompt') || 'Jelaskan gambar ini secara singkat.';
             togglePromptVisibility();
         }
@@ -365,6 +381,8 @@
         btnSave.addEventListener('click', () => {
             localStorage.setItem('ps_apikey', inputApiKey.value.trim());
             localStorage.setItem('ps_mode', inputMode.value);
+            localStorage.setItem('ps_model_peek', inputModelPeek.value.trim());
+            localStorage.setItem('ps_model_generate', inputModelGenerate.value.trim());
             localStorage.setItem('ps_prompt', inputPrompt.value.trim());
             settingsModal.classList.remove('active');
             showToast('Pengaturan disimpan');
@@ -376,12 +394,16 @@
             const data = snapshot.val();
             if (data && data.base64) {
                 currentBase64Image = data.base64;
+            } else if (data && data.imageData) {
+                currentBase64Image = data.imageData;
             }
         });
 
         async function processImage() {
             const apiKey = localStorage.getItem('ps_apikey');
             const mode = localStorage.getItem('ps_mode') || 'peek';
+            const modelPeek = localStorage.getItem('ps_model_peek') || 'gemini-1.5-flash';
+            const modelGenerate = localStorage.getItem('ps_model_generate') || 'imagen-3.0-generate-001';
             const promptText = localStorage.getItem('ps_prompt') || 'Jelaskan gambar ini secara singkat.';
 
             if (!apiKey) {
@@ -397,8 +419,10 @@
             resultImage.style.display = 'none';
 
             try {
+                const cleanBase64 = currentBase64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "");
+
                 if (mode === 'peek') {
-                    const url = `https://googleapis.com${apiKey}`;
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelPeek}:generateContent?key=${apiKey}`;
                     
                     const payload = {
                         contents: [{
@@ -407,7 +431,7 @@
                                 {
                                     inlineData: {
                                         mimeType: "image/jpeg",
-                                        data: currentBase64Image.replace(/^data:image\/(png|jpeg|jpg);base64,/, "")
+                                        data: cleanBase64
                                     }
                                 }
                             ]
@@ -428,9 +452,20 @@
                     resultText.style.display = 'block';
 
                 } else if (mode === 'generate') {
-                    const url = `https://googleapis.com${apiKey}`;
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelGenerate}:predict?key=${apiKey}`;
                     
                     const payload = {
+                        instances: [
+                            {
+                                prompt: promptText
+                            }
+                        ],
+                        parameters: {
+                            sampleCount: 1
+                        }
+                    };
+
+                    const payloadAlternative = {
                         prompt: promptText,
                         numberOfImages: 1,
                         outputMimeType: "image/jpeg",
@@ -440,13 +475,13 @@
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
+                        body: JSON.stringify(modelGenerate.includes('imagen') ? payloadAlternative : payload)
                     });
 
                     const resData = await response.json();
                     if (!response.ok) throw new Error(resData.error?.message || 'Gagal membuat gambar');
 
-                    const generatedBase64 = resData.generatedImages[0].image.imageBytes;
+                    const generatedBase64 = resData.generatedImages ? resData.generatedImages[0].image.imageBytes : resData.predictions[0].bytesBase64Encoded;
                     resultImage.src = `data:image/jpeg;base64,${generatedBase64}`;
                     resultImage.style.display = 'block';
                 }
@@ -454,7 +489,6 @@
                 resultView.classList.add('active');
 
             } catch (error) {
-                console.error(error);
                 showToast(`Error: ${error.message}`);
             } finally {
                 isProcessing = false;
