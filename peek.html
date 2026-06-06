@@ -297,7 +297,7 @@
 
             <div class="input-group">
                 <label>Model Generate</label>
-                <input type="text" id="input-model-generate" class="input-control" autocomplete="off" placeholder="imagen-3.0-generate-001">
+                <input type="text" id="input-model-generate" class="input-control" autocomplete="off" placeholder="gemini-3.1-flash-image-preview">
             </div>
 
             <div class="input-group" id="prompt-container">
@@ -367,7 +367,7 @@
             inputApiKey.value = localStorage.getItem('ps_apikey') || '';
             inputMode.value = localStorage.getItem('ps_mode') || 'peek';
             inputModelPeek.value = localStorage.getItem('ps_model_peek') || 'gemini-1.5-flash';
-            inputModelGenerate.value = localStorage.getItem('ps_model_generate') || 'imagen-3.0-generate-001';
+            inputModelGenerate.value = localStorage.getItem('ps_model_generate') || 'gemini-3.1-flash-image-preview';
             inputPrompt.value = localStorage.getItem('ps_prompt') || 'Jelaskan gambar ini secara singkat.';
             togglePromptVisibility();
             appendLog('Aplikasi dimulai. Pengaturan dimuat.', 'system');
@@ -457,7 +457,7 @@
             const apiKey = localStorage.getItem('ps_apikey');
             const mode = localStorage.getItem('ps_mode') || 'peek';
             const modelPeek = localStorage.getItem('ps_model_peek') || 'gemini-1.5-flash';
-            const modelGenerate = localStorage.getItem('ps_model_generate') || 'imagen-3.0-generate-001';
+            const modelGenerate = localStorage.getItem('ps_model_generate') || 'gemini-3.1-flash-image-preview';
             const promptText = localStorage.getItem('ps_prompt') || 'Jelaskan gambar ini secara singkat.';
 
             if (!apiKey) {
@@ -521,33 +521,21 @@
                     resultText.style.display = 'block';
 
                 } else if (mode === 'generate') {
-                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelGenerate}:generateContent?key=${apiKey}`;
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelGenerate}:generateImages?key=${apiKey}`;
                     
                     const payload = {
-                        instances: [
-                            {
-                                prompt: promptText
-                            }
-                        ],
-                        parameters: {
-                            sampleCount: 1
-                        }
-                    };
-
-                    const payloadAlternative = {
                         prompt: promptText,
                         numberOfImages: 1,
                         outputMimeType: "image/jpeg",
                         aspectRatio: "1:1"
                     };
 
-                    const finalPayload = modelGenerate.includes('imagen') ? payloadAlternative : payload;
                     appendLog(`Payload terkirim ke ${modelGenerate}`, 'info');
 
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(finalPayload)
+                        body: JSON.stringify(payload)
                     });
 
                     const resData = await response.json();
@@ -557,9 +545,9 @@
                         throw new Error(resData.error?.message || 'Gagal membuat gambar');
                     }
 
-                    appendLog(`Respon sukses diterima (data disembunyikan karena terlalu panjang)`, 'success');
+                    appendLog(`Respon sukses diterima (data disembunyikan)`, 'success');
 
-                    const generatedBase64 = resData.generatedImages ? resData.generatedImages[0].image.imageBytes : resData.predictions[0].bytesBase64Encoded;
+                    const generatedBase64 = resData.generatedImages[0].image.imageBytes;
                     resultImage.src = `data:image/jpeg;base64,${generatedBase64}`;
                     resultImage.style.display = 'block';
                 }
