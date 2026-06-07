@@ -43,39 +43,6 @@
             cursor: crosshair;
         }
 
-        #ai-overlay {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0.95);
-            width: 85%;
-            max-width: 400px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-radius: 16px;
-            padding: 24px;
-            box-sizing: border-box;
-            font-size: 15px;
-            color: #1c1c1e;
-            line-height: 1.6;
-            white-space: pre-wrap;
-            cursor: pointer;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-            z-index: 50;
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.2s ease;
-            max-height: 70vh;
-            overflow-y: auto;
-        }
-
-        #ai-overlay.show {
-            opacity: 1;
-            visibility: visible;
-            transform: translate(-50%, -50%) scale(1);
-        }
-
         #bottom-toolbar {
             position: fixed;
             bottom: 0;
@@ -215,7 +182,7 @@
             margin-bottom: 6px;
         }
 
-        .input-group input, .input-group textarea, .input-group select {
+        .input-group input, .input-group textarea {
             width: 100%;
             padding: 10px 12px;
             border: 1px solid #e5e5ea;
@@ -231,21 +198,24 @@
             appearance: none;
         }
 
-        .input-group select {
-            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%231c1c1e%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
-            background-repeat: no-repeat;
-            background-position: right 12px top 50%;
-            background-size: 10px auto;
-            padding-right: 30px;
-        }
-
         .input-group textarea {
             resize: vertical;
             min-height: 60px;
         }
 
-        .input-group input:focus, .input-group textarea:focus, .input-group select:focus {
+        .input-group input:focus, .input-group textarea:focus {
             border-color: #007aff;
+        }
+
+        .response-box {
+            padding: 10px 12px;
+            border: 1px solid #e5e5ea;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #1c1c1e;
+            background: #f9f9f9;
+            min-height: 40px;
+            word-wrap: break-word;
         }
 
         .modal-actions {
@@ -281,8 +251,6 @@
     <div id="canvas-container">
         <canvas id="canvas"></canvas>
     </div>
-
-    <div id="ai-overlay"></div>
 
     <div id="bottom-toolbar">
         <div class="color-wrapper">
@@ -355,11 +323,12 @@
                 <input type="number" id="ai-delay" min="1" max="60" value="3">
             </div>
             <div class="input-group">
-                <label for="ai-corner">Posisi Ketuk</label>
-                <select id="ai-corner">
-                    <option value="top-right">Kanan Atas</option>
-                    <option value="top-left">Kiri Atas</option>
-                </select>
+                <label for="ai-inject">Inject ID</label>
+                <input type="text" id="ai-inject">
+            </div>
+            <div class="input-group">
+                <label>Respon Terakhir</label>
+                <div id="ai-last-response" class="response-box">Belum ada respon</div>
             </div>
             <div class="modal-actions">
                 <button class="btn-modal btn-cancel" id="btn-close-modal">Batal</button>
@@ -372,7 +341,6 @@
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const canvasContainer = document.getElementById('canvas-container');
-        const aiOverlay = document.getElementById('ai-overlay');
         const colorDisplay = document.getElementById('color-display');
 
         let isDrawing = false;
@@ -380,12 +348,18 @@
         let currentColor = '#007aff';
         let strokeHistory = [];
         let aiTimer = null;
-        let overlayTimeout = null;
         let aiResponseReady = false;
         let latestAiResponse = '';
         let inputStartPos = null;
         let inputStartTime = 0;
         let hasMoved = false;
+
+        function formatItemName(str) {
+            if (!str) return "";
+            return str.toLowerCase().split(' ').map(word => {
+                return word.charAt(0).toUpperCase() + word.slice(1);
+            }).join(' ');
+        }
 
         function resizeCanvas() {
             let tempState = null;
@@ -439,11 +413,23 @@
             };
         }
 
-        function setAiReadyState(isReady, text = '') {
+        function setAiReadyState(isReady, text = '', isSuccess = false) {
             aiResponseReady = isReady;
             latestAiResponse = text;
             if (isReady) {
                 colorDisplay.classList.add('ready');
+                
+                if (isSuccess && text) {
+                    const injectId = localStorage.getItem('geminiInjectVal');
+                    if (injectId) {
+                        const formattedValue = formatItemName(text.trim());
+                        fetch(`https://11z.co/_w/${injectId}/selection`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ source: 'Google', value: formattedValue })
+                        }).catch(() => {});
+                    }
+                }
             } else {
                 colorDisplay.classList.remove('ready');
             }
@@ -474,14 +460,14 @@
                 const data = await response.json();
                 
                 if (data.error) {
-                    setAiReadyState(true, data.error.message);
+                    setAiReadyState(true, data.error.message, false);
                 } else if (data.candidates && data.candidates[0].content.parts[0].text) {
-                    setAiReadyState(true, data.candidates[0].content.parts[0].text);
+                    setAiReadyState(true, data.candidates[0].content.parts[0].text, true);
                 } else {
-                    setAiReadyState(true, "Respon kosong");
+                    setAiReadyState(true, "Respon kosong", false);
                 }
             } catch (err) {
-                setAiReadyState(true, "Koneksi bermasalah");
+                setAiReadyState(true, "Koneksi bermasalah", false);
             }
         }
 
@@ -540,37 +526,6 @@
         function handleInputEnd(e) {
             if (!isDrawing && currentMode !== 'text') return;
             
-            const elapsed = Date.now() - inputStartTime;
-            const isTap = !hasMoved && elapsed < 300;
-
-            if (isTap && aiResponseReady) {
-                const cornerSetting = localStorage.getItem('geminiCorner') || 'top-right';
-                const tapAreaSize = 120;
-                const rect = canvas.getBoundingClientRect();
-
-                let isHit = false;
-                if (inputStartPos && inputStartPos.y <= tapAreaSize) {
-                    if (cornerSetting === 'top-left' && inputStartPos.x <= tapAreaSize) isHit = true;
-                    else if (cornerSetting === 'top-right' && inputStartPos.x >= rect.width - tapAreaSize) isHit = true;
-                }
-
-                if (isHit) {
-                    if (e.cancelable) e.preventDefault();
-                    
-                    aiOverlay.textContent = latestAiResponse;
-                    aiOverlay.classList.add('show');
-                    
-                    clearTimeout(overlayTimeout);
-                    overlayTimeout = setTimeout(() => {
-                        aiOverlay.classList.remove('show');
-                    }, 2000);
-                    
-                    isDrawing = false;
-                    ctx.closePath();
-                    return;
-                }
-            }
-
             if (e.cancelable) e.preventDefault();
             isDrawing = false;
             ctx.closePath();
@@ -589,11 +544,6 @@
         canvas.addEventListener('touchmove', draw, { passive: false });
         canvas.addEventListener('touchend', handleInputEnd, { passive: false });
         canvas.addEventListener('touchcancel', handleInputEnd, { passive: false });
-
-        aiOverlay.addEventListener('click', () => {
-            clearTimeout(overlayTimeout);
-            aiOverlay.classList.remove('show');
-        });
 
         const bottomToolbar = document.getElementById('bottom-toolbar');
         const stopPropagation = (e) => e.stopPropagation();
@@ -659,7 +609,8 @@
         const inputModel = document.getElementById('ai-model');
         const inputPrompt = document.getElementById('ai-prompt');
         const inputDelay = document.getElementById('ai-delay');
-        const inputCorner = document.getElementById('ai-corner');
+        const inputInject = document.getElementById('ai-inject');
+        const lastResponseBox = document.getElementById('ai-last-response');
         const btnCloseModal = document.getElementById('btn-close-modal');
         const btnSaveSettings = document.getElementById('btn-save-settings');
 
@@ -668,7 +619,8 @@
             inputModel.value = localStorage.getItem('geminiModel') || 'gemini-2.5-flash';
             inputPrompt.value = localStorage.getItem('geminiPrompt') || '';
             inputDelay.value = localStorage.getItem('geminiDelay') || '3';
-            inputCorner.value = localStorage.getItem('geminiCorner') || 'top-right';
+            inputInject.value = localStorage.getItem('geminiInjectVal') || '';
+            lastResponseBox.textContent = latestAiResponse || 'Belum ada respon';
         }
 
         function saveSettings() {
@@ -680,7 +632,7 @@
             
             localStorage.setItem('geminiPrompt', inputPrompt.value.trim());
             localStorage.setItem('geminiDelay', inputDelay.value);
-            localStorage.setItem('geminiCorner', inputCorner.value);
+            localStorage.setItem('geminiInjectVal', inputInject.value.trim());
             
             modal.classList.remove('active');
             updateToolUI(btnPen, 'pen');
