@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="apple-mobile-web-app-capable" content="no">
-    <meta name="mobile-web-app-capable" content="no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>Workspace</title>
     <style>
         body, html {
@@ -13,14 +13,14 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #f0f2f5;
+            background-color: #ffffff;
             touch-action: none;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
         
         #canvas-container {
             width: 100%;
-            height: 100%;
+            height: calc(100% - 60px);
             position: absolute;
             top: 0;
             left: 0;
@@ -35,33 +35,41 @@
             cursor: crosshair;
         }
 
-        .floating-panel {
-            position: fixed;
-            width: 92%;
-            max-width: 400px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-radius: 24px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
-            display: flex;
-            padding: 12px 16px;
+        #ai-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: calc(100% - 60px);
+            background: #ffffff;
+            z-index: 50;
+            display: none;
+            overflow-y: auto;
+            padding: 24px;
             box-sizing: border-box;
-            z-index: 100;
+            font-size: 16px;
+            color: #1c1c1e;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            cursor: pointer;
         }
 
-        #top-toolbar {
-            top: 16px; 
-            justify-content: space-between;
+        #ai-overlay.show {
+            display: block;
+        }
+
+        #bottom-toolbar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background: #f2f2f7;
+            display: flex;
+            justify-content: space-evenly;
             align-items: center;
-        }
-
-        #bottom-palette {
-            bottom: 16px; 
-            justify-content: center;
-            gap: 16px;
+            z-index: 100;
+            border-top: 1px solid #e5e5ea;
         }
 
         .tool-btn {
@@ -70,60 +78,183 @@
             outline: none;
             cursor: pointer;
             padding: 10px;
-            border-radius: 14px;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
-            flex: 1;
-            transition: all 0.2s;
             -webkit-tap-highlight-color: transparent;
+            transition: opacity 0.2s;
         }
 
-        .tool-btn img {
-            width: 26px;
-            height: 26px;
-            opacity: 0.6;
-            transition: all 0.2s;
+        .tool-btn:active {
+            opacity: 0.5;
         }
 
-        .tool-btn.active {
-            background: #e6f2ff;
+        .tool-btn svg {
+            width: 24px;
+            height: 24px;
+            stroke: #1c1c1e;
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
-        .tool-btn.active img {
-            opacity: 1;
-            filter: invert(27%) sepia(91%) saturate(2135%) hue-rotate(205deg) brightness(97%) contrast(106%);
+        .tool-btn.active svg {
+            stroke: #007aff;
         }
 
-        .tool-btn:active img {
-            transform: scale(0.85);
-        }
-
-        .divider-vertical {
-            width: 1px;
-            height: 30px;
-            background: #e9ecef;
-            margin: 0 4px;
-        }
-
-        .color-btn {
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            border: 3px solid transparent;
+        .color-wrapper {
+            position: relative;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             cursor: pointer;
-            padding: 0;
-            transition: all 0.2s;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            -webkit-tap-highlight-color: transparent;
-            flex-shrink: 0;
         }
 
-        .color-btn.active {
-            border-color: #dee2e6;
-            transform: scale(1.15);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        .color-circle {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: #007aff;
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+            pointer-events: none;
+            transition: box-shadow 0.2s;
+        }
+
+        .color-circle.ready {
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1), 0 0 0 2px #1c1c1e;
+        }
+
+        #color-picker {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        #settings-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+        }
+
+        #settings-modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-card {
+            background: #ffffff;
+            width: 85%;
+            max-width: 340px;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            transform: scale(0.95);
+            transition: transform 0.2s ease;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        #settings-modal.active .modal-card {
+            transform: scale(1);
+        }
+
+        .modal-title {
+            margin: 0 0 20px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #1c1c1e;
+            text-align: center;
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #6c6c70;
+            margin-bottom: 6px;
+        }
+
+        .input-group input, .input-group textarea, .input-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e5e5ea;
+            border-radius: 8px;
+            font-size: 15px;
+            color: #1c1c1e;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: inherit;
+            background: #ffffff;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .input-group select {
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%231c1c1e%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px top 50%;
+            background-size: 10px auto;
+            padding-right: 30px;
+        }
+
+        .input-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .input-group input:focus, .input-group textarea:focus, .input-group select:focus {
+            border-color: #007aff;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .btn-modal {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn-cancel {
+            background: #f2f2f7;
+            color: #1c1c1e;
+        }
+
+        .btn-save {
+            background: #007aff;
+            color: #ffffff;
         }
     </style>
 </head>
@@ -133,62 +264,106 @@
         <canvas id="canvas"></canvas>
     </div>
 
-    <div id="top-toolbar" class="floating-panel">
-        <button class="tool-btn active" id="btn-pen" title="Pen">
-            <img src="https://img.icons8.com/ios-glyphs/30/333333/edit.png" alt="Pen" draggable="false">
+    <div id="ai-overlay"></div>
+
+    <div id="bottom-toolbar">
+        <div class="color-wrapper">
+            <input type="color" id="color-picker" value="#007aff">
+            <div class="color-circle" id="color-display"></div>
+        </div>
+
+        <button class="tool-btn active" id="btn-pen">
+            <svg viewBox="0 0 24 24">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+            </svg>
         </button>
-        <button class="tool-btn" id="btn-eraser" title="Eraser">
-            <img src="https://img.icons8.com/ios-glyphs/30/333333/eraser.png" alt="Eraser" draggable="false">
+
+        <button class="tool-btn" id="btn-brush">
+            <svg viewBox="0 0 24 24">
+                <path d="M18 2l4 4-10 10-4-4L18 2z"></path>
+                <path d="M2 22v-4l4-4 4 4-4 4H2z" fill="#1c1c1e" stroke="none"></path>
+            </svg>
         </button>
-        
-        <div class="divider-vertical"></div>
-        
-        <button class="tool-btn" id="btn-undo" title="Undo">
-            <img src="https://img.icons8.com/ios-glyphs/30/333333/undo.png" alt="Undo" draggable="false">
+
+        <button class="tool-btn" id="btn-text">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 20h16"></path>
+                <path d="M12 4l-6 12"></path>
+                <path d="M12 4l6 12"></path>
+                <path d="M8 12h8"></path>
+            </svg>
         </button>
-        <button class="tool-btn" id="btn-clear" title="Clear">
-            <img src="https://img.icons8.com/ios-glyphs/30/333333/trash.png" alt="Clear" draggable="false">
+
+        <button class="tool-btn" id="btn-clear">
+            <svg viewBox="0 0 24 24">
+                <path d="M3 6h18"></path>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
         </button>
-        <button class="tool-btn" id="btn-download" title="Export">
-            <img src="https://img.icons8.com/ios-glyphs/30/333333/download.png" alt="Export" draggable="false">
+
+        <button class="tool-btn" id="btn-undo">
+            <svg viewBox="0 0 24 24">
+                <path d="M3 7v6h6"></path>
+                <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"></path>
+            </svg>
+        </button>
+
+        <button class="tool-btn" id="btn-download">
+            <svg viewBox="0 0 24 24">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
         </button>
     </div>
 
-    <div id="bottom-palette" class="floating-panel">
-        <button class="color-btn active" style="background-color: #212529;" data-color="#212529"></button>
-        <button class="color-btn" style="background-color: #dc3545;" data-color="#dc3545"></button>
-        <button class="color-btn" style="background-color: #0d6efd;" data-color="#0d6efd"></button>
-        <button class="color-btn" style="background-color: #198754;" data-color="#198754"></button>
-        <button class="color-btn" style="background-color: #ffc107;" data-color="#ffc107"></button>
+    <div id="settings-modal">
+        <div class="modal-card">
+            <h3 class="modal-title">Pengaturan</h3>
+            <div class="input-group">
+                <label for="api-key">API Key</label>
+                <input type="password" id="api-key" placeholder="Masukkan API Key">
+            </div>
+            <div class="input-group">
+                <label for="ai-model">Model</label>
+                <input type="text" id="ai-model" value="gemini-2.5-flash">
+            </div>
+            <div class="input-group">
+                <label for="ai-prompt">Prompt</label>
+                <textarea id="ai-prompt" placeholder="Instruksi untuk AI"></textarea>
+            </div>
+            <div class="input-group">
+                <label for="ai-delay">Waktu Tunggu (Detik)</label>
+                <input type="number" id="ai-delay" min="1" max="60" value="3">
+            </div>
+            <div class="input-group">
+                <label for="ai-corner">Posisi Tap Respon</label>
+                <select id="ai-corner">
+                    <option value="top-right">Kanan Atas</option>
+                    <option value="top-left">Kiri Atas</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal btn-cancel" id="btn-close-modal">Batal</button>
+                <button class="btn-modal btn-save" id="btn-save-settings">Simpan</button>
+            </div>
+        </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
-
-        const firebaseConfig = {
-  apiKey: "AIzaSyBsu91cGiUlZcM7bGfGLNklykH7QtG0NTw",
-  authDomain: "drawbyheri.firebaseapp.com",
-  databaseURL: "https://drawbyheri-default-rtdb.firebaseio.com",
-  projectId: "drawbyheri",
-  storageBucket: "drawbyheri.firebasestorage.app",
-  messagingSenderId: "287164271284",
-  appId: "1:287164271284:web:9eb8f29ea79d7e4e10e5e1"
-};
-
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-
+    <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const canvasContainer = document.getElementById('canvas-container');
+        const aiOverlay = document.getElementById('ai-overlay');
+        const colorDisplay = document.getElementById('color-display');
 
         let isDrawing = false;
-        let syncTimer = null; 
-        
         let currentMode = 'pen';
-        let currentColor = '#212529';
+        let currentColor = '#007aff';
         let strokeHistory = [];
+        let aiTimer = null;
+        let aiResponseReady = false;
+        let latestAiResponse = '';
 
         function resizeCanvas() {
             let tempState = null;
@@ -238,9 +413,69 @@
             };
         }
 
+        function setAiReadyState(isReady, text = '') {
+            aiResponseReady = isReady;
+            latestAiResponse = text;
+            if (isReady) {
+                colorDisplay.classList.add('ready');
+            } else {
+                colorDisplay.classList.remove('ready');
+            }
+        }
+
+        async function processWithGemini() {
+            const apiKey = localStorage.getItem('geminiApiKey');
+            if (!apiKey) return;
+
+            const model = localStorage.getItem('geminiModel') || 'gemini-2.5-flash';
+            const prompt = localStorage.getItem('geminiPrompt') || 'Jelaskan apa yang ada di gambar ini.';
+            const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: prompt },
+                                { inlineData: { mimeType: "image/jpeg", data: base64Image } }
+                            ]
+                        }]
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    setAiReadyState(true, data.error.message);
+                } else if (data.candidates && data.candidates[0].content.parts[0].text) {
+                    setAiReadyState(true, data.candidates[0].content.parts[0].text);
+                } else {
+                    setAiReadyState(true, "Respon kosong.");
+                }
+            } catch (err) {
+                setAiReadyState(true, "Koneksi terputus atau terjadi kesalahan.");
+            }
+        }
+
+        function clearAiTimer() {
+            clearTimeout(aiTimer);
+            setAiReadyState(false);
+        }
+
+        function startAiTimer() {
+            clearTimeout(aiTimer);
+            const delayStr = localStorage.getItem('geminiDelay') || '3';
+            const delay = parseFloat(delayStr) * 1000;
+            aiTimer = setTimeout(processWithGemini, delay);
+        }
+
         function startDrawing(e) {
+            if (currentMode === 'text') return;
             e.preventDefault();
             isDrawing = true;
+            clearAiTimer();
             saveHistoryState();
             
             const pos = getPos(e);
@@ -250,19 +485,17 @@
         }
 
         function draw(e) {
-            if (!isDrawing) return;
+            if (!isDrawing || currentMode === 'text') return;
             e.preventDefault();
             const pos = getPos(e);
             
-            ctx.lineWidth = currentMode === 'eraser' ? 24 : 4;
+            ctx.lineWidth = currentMode === 'brush' ? 12 : 4;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
-            ctx.strokeStyle = currentMode === 'eraser' ? '#ffffff' : currentColor;
+            ctx.strokeStyle = currentColor;
             
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
-            
-            scheduleSync();
         }
 
         function stopDrawing(e) {
@@ -270,7 +503,7 @@
                 e.preventDefault();
                 isDrawing = false;
                 ctx.closePath();
-                scheduleSync();
+                startAiTimer();
             }
         }
 
@@ -284,46 +517,67 @@
         canvas.addEventListener('touchend', stopDrawing);
         canvas.addEventListener('touchcancel', stopDrawing);
 
-        const topToolbar = document.getElementById('top-toolbar');
-        const bottomPalette = document.getElementById('bottom-palette');
-        
+        canvas.addEventListener('click', (e) => {
+            if (!aiResponseReady || isDrawing) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const cornerSetting = localStorage.getItem('geminiCorner') || 'top-right';
+            const tapAreaSize = 120;
+
+            let isHit = false;
+            if (y <= tapAreaSize) {
+                if (cornerSetting === 'top-left' && x <= tapAreaSize) {
+                    isHit = true;
+                } else if (cornerSetting === 'top-right' && x >= rect.width - tapAreaSize) {
+                    isHit = true;
+                }
+            }
+
+            if (isHit) {
+                aiOverlay.textContent = latestAiResponse;
+                aiOverlay.classList.add('show');
+            }
+        });
+
+        aiOverlay.addEventListener('click', () => {
+            aiOverlay.classList.remove('show');
+        });
+
+        const bottomToolbar = document.getElementById('bottom-toolbar');
         const stopPropagation = (e) => e.stopPropagation();
         
-        topToolbar.addEventListener('touchstart', stopPropagation);
-        topToolbar.addEventListener('mousedown', stopPropagation);
-        bottomPalette.addEventListener('touchstart', stopPropagation);
-        bottomPalette.addEventListener('mousedown', stopPropagation);
+        bottomToolbar.addEventListener('touchstart', stopPropagation, { passive: true });
+        bottomToolbar.addEventListener('mousedown', stopPropagation);
 
         const btnPen = document.getElementById('btn-pen');
-        const btnEraser = document.getElementById('btn-eraser');
-        const colorBtns = document.querySelectorAll('.color-btn');
+        const btnBrush = document.getElementById('btn-brush');
+        const btnText = document.getElementById('btn-text');
+        const colorPicker = document.getElementById('color-picker');
 
-        btnPen.addEventListener('click', () => {
-            currentMode = 'pen';
-            btnPen.classList.add('active');
-            btnEraser.classList.remove('active');
-        });
-
-        btnEraser.addEventListener('click', () => {
-            currentMode = 'eraser';
-            btnEraser.classList.add('active');
+        function updateToolUI(activeBtn, mode) {
             btnPen.classList.remove('active');
-        });
+            btnBrush.classList.remove('active');
+            btnText.classList.remove('active');
+            activeBtn.classList.add('active');
+            currentMode = mode;
+        }
 
-        colorBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                colorBtns.forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                currentColor = e.target.getAttribute('data-color');
-                
-                currentMode = 'pen';
-                btnPen.classList.add('active');
-                btnEraser.classList.remove('active');
-            });
+        btnPen.addEventListener('click', () => updateToolUI(btnPen, 'pen'));
+        btnBrush.addEventListener('click', () => updateToolUI(btnBrush, 'brush'));
+        
+        colorPicker.addEventListener('input', (e) => {
+            currentColor = e.target.value;
+            colorDisplay.style.backgroundColor = currentColor;
+            if (currentMode === 'text') {
+                updateToolUI(btnPen, 'pen');
+            }
         });
 
         document.getElementById('btn-undo').addEventListener('click', () => {
             if (strokeHistory.length > 0) {
+                clearAiTimer();
                 let lastState = strokeHistory.pop();
                 let img = new Image();
                 img.src = lastState;
@@ -331,15 +585,16 @@
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     fillWhiteBackground();
                     ctx.drawImage(img, 0, 0);
-                    scheduleSync(); 
+                    startAiTimer();
                 }
             }
         });
 
         document.getElementById('btn-clear').addEventListener('click', () => {
+            clearAiTimer();
             saveHistoryState();
             fillWhiteBackground();
-            scheduleSync(); 
+            startAiTimer();
         });
 
         document.getElementById('btn-download').addEventListener('click', () => {
@@ -349,24 +604,65 @@
             link.click();
         });
 
-        function scheduleSync() {
-            if (syncTimer) {
-                clearTimeout(syncTimer);
-            }
+        const modal = document.getElementById('settings-modal');
+        const inputApiKey = document.getElementById('api-key');
+        const inputModel = document.getElementById('ai-model');
+        const inputPrompt = document.getElementById('ai-prompt');
+        const inputDelay = document.getElementById('ai-delay');
+        const inputCorner = document.getElementById('ai-corner');
+        const btnCloseModal = document.getElementById('btn-close-modal');
+        const btnSaveSettings = document.getElementById('btn-save-settings');
+
+        function loadSettings() {
+            inputApiKey.value = localStorage.getItem('geminiApiKey') || '';
+            inputModel.value = localStorage.getItem('geminiModel') || 'gemini-2.5-flash';
+            inputPrompt.value = localStorage.getItem('geminiPrompt') || 'Jelaskan apa yang ada di gambar ini.';
+            inputDelay.value = localStorage.getItem('geminiDelay') || '3';
+            inputCorner.value = localStorage.getItem('geminiCorner') || 'top-right';
+        }
+
+        function saveSettings() {
+            localStorage.setItem('geminiApiKey', inputApiKey.value.trim());
             
-            syncTimer = setTimeout(() => {
-                syncToFirebase();
-            }, 3000);
+            let modelVal = inputModel.value.trim();
+            if (!modelVal) modelVal = 'gemini-2.5-flash';
+            localStorage.setItem('geminiModel', modelVal);
+            
+            localStorage.setItem('geminiPrompt', inputPrompt.value.trim());
+            localStorage.setItem('geminiDelay', inputDelay.value);
+            localStorage.setItem('geminiCorner', inputCorner.value);
+            
+            modal.classList.remove('active');
         }
 
-        function syncToFirebase() {
-            const base64Image = canvas.toDataURL('image/jpeg', 0.8);
+        btnCloseModal.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
 
-            set(ref(db, 'magic_sync/current_canvas'), {
-                imageData: base64Image,
-                timestamp: Date.now()
-            }).catch(() => {});
+        btnSaveSettings.addEventListener('click', saveSettings);
+
+        let pressTimer;
+        
+        function handlePressStart(e) {
+            updateToolUI(btnText, 'text');
+            pressTimer = setTimeout(() => {
+                loadSettings();
+                modal.classList.add('active');
+            }, 500);
         }
+
+        function handlePressEnd() {
+            clearTimeout(pressTimer);
+        }
+
+        btnText.addEventListener('mousedown', handlePressStart);
+        btnText.addEventListener('touchstart', handlePressStart, { passive: true });
+        btnText.addEventListener('mouseup', handlePressEnd);
+        btnText.addEventListener('mouseleave', handlePressEnd);
+        btnText.addEventListener('touchend', handlePressEnd);
+        btnText.addEventListener('touchcancel', handlePressEnd);
+
+        loadSettings();
     </script>
 </body>
 </html>
