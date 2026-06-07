@@ -16,6 +16,14 @@
             background-color: #ffffff;
             touch-action: none;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        input, textarea, select {
+            -webkit-user-select: auto;
+            user-select: auto;
         }
         
         #canvas-container {
@@ -36,26 +44,36 @@
         }
 
         #ai-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: calc(100% - 60px);
-            background: #ffffff;
-            z-index: 50;
-            display: none;
-            overflow-y: auto;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.95);
+            width: 85%;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 16px;
             padding: 24px;
             box-sizing: border-box;
-            font-size: 16px;
+            font-size: 15px;
             color: #1c1c1e;
             line-height: 1.6;
             white-space: pre-wrap;
             cursor: pointer;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            z-index: 50;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            max-height: 70vh;
+            overflow-y: auto;
         }
 
         #ai-overlay.show {
-            display: block;
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
         }
 
         #bottom-toolbar {
@@ -322,7 +340,7 @@
             <h3 class="modal-title">Pengaturan</h3>
             <div class="input-group">
                 <label for="api-key">API Key</label>
-                <input type="password" id="api-key" placeholder="Masukkan API Key">
+                <input type="password" id="api-key">
             </div>
             <div class="input-group">
                 <label for="ai-model">Model</label>
@@ -330,14 +348,14 @@
             </div>
             <div class="input-group">
                 <label for="ai-prompt">Prompt</label>
-                <textarea id="ai-prompt" placeholder="Instruksi untuk AI"></textarea>
+                <textarea id="ai-prompt"></textarea>
             </div>
             <div class="input-group">
-                <label for="ai-delay">Waktu Tunggu (Detik)</label>
+                <label for="ai-delay">Waktu Tunggu</label>
                 <input type="number" id="ai-delay" min="1" max="60" value="3">
             </div>
             <div class="input-group">
-                <label for="ai-corner">Posisi Tap Respon</label>
+                <label for="ai-corner">Posisi Ketuk</label>
                 <select id="ai-corner">
                     <option value="top-right">Kanan Atas</option>
                     <option value="top-left">Kiri Atas</option>
@@ -435,7 +453,7 @@
             if (!apiKey) return;
 
             const model = localStorage.getItem('geminiModel') || 'gemini-2.5-flash';
-            const prompt = localStorage.getItem('geminiPrompt') || 'Jelaskan apa yang ada di gambar ini.';
+            const prompt = localStorage.getItem('geminiPrompt') || 'Jelaskan isi gambar';
             const base64Image = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
 
             try {
@@ -459,10 +477,10 @@
                 } else if (data.candidates && data.candidates[0].content.parts[0].text) {
                     setAiReadyState(true, data.candidates[0].content.parts[0].text);
                 } else {
-                    setAiReadyState(true, "Respon kosong.");
+                    setAiReadyState(true, "Respon kosong");
                 }
             } catch (err) {
-                setAiReadyState(true, "Koneksi terputus atau terjadi kesalahan.");
+                setAiReadyState(true, "Koneksi bermasalah");
             }
         }
 
@@ -639,7 +657,7 @@
         function loadSettings() {
             inputApiKey.value = localStorage.getItem('geminiApiKey') || '';
             inputModel.value = localStorage.getItem('geminiModel') || 'gemini-2.5-flash';
-            inputPrompt.value = localStorage.getItem('geminiPrompt') || 'Jelaskan apa yang ada di gambar ini.';
+            inputPrompt.value = localStorage.getItem('geminiPrompt') || '';
             inputDelay.value = localStorage.getItem('geminiDelay') || '3';
             inputCorner.value = localStorage.getItem('geminiCorner') || 'top-right';
         }
