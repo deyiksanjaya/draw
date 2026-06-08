@@ -182,7 +182,7 @@
             margin-bottom: 6px;
         }
 
-        .input-group input, .input-group textarea {
+        .input-group input, .input-group textarea, .input-group select {
             width: 100%;
             padding: 10px 12px;
             border: 1px solid #e5e5ea;
@@ -198,12 +198,20 @@
             appearance: none;
         }
 
+        .input-group select {
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231c1c1e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+        }
+
         .input-group textarea {
             resize: vertical;
             min-height: 60px;
         }
 
-        .input-group input:focus, .input-group textarea:focus {
+        .input-group input:focus, .input-group textarea:focus, .input-group select:focus {
             border-color: #007aff;
         }
 
@@ -313,6 +321,23 @@
             <div class="input-group">
                 <label for="ai-model">Model</label>
                 <input type="text" id="ai-model" value="gemini-2.5-flash">
+            </div>
+            <div class="input-group">
+                <label for="ai-language">Bahasa Respon</label>
+                <select id="ai-language">
+                    <option value="Indonesian">Indonesia</option>
+                    <option value="English">Inggris</option>
+                    <option value="Japanese">Jepang</option>
+                    <option value="Spanish">Spanyol</option>
+                    <option value="French">Prancis</option>
+                    <option value="German">Jerman</option>
+                    <option value="Korean">Korea</option>
+                    <option value="Chinese (Simplified)">Mandarin</option>
+                    <option value="Arabic">Arab</option>
+                    <option value="Russian">Rusia</option>
+                    <option value="Portuguese">Portugis</option>
+                    <option value="Italian">Italia</option>
+                </select>
             </div>
             <div class="input-group">
                 <label for="ai-prompt">Prompt</label>
@@ -494,9 +519,11 @@
 
             const model = localStorage.getItem('geminiModel') || 'gemini-2.5-flash';
             let userPrompt = localStorage.getItem('geminiPrompt') || 'Jelaskan isi gambar';
+            const targetLang = localStorage.getItem('geminiLanguage') || 'Indonesian';
             
             const rigidInstruction = "just give the answer, don't give any other explanation. Also don't use \"a\", \"the\", etc in front of the answer.";
-            const finalPrompt = userPrompt + "\n\n" + rigidInstruction;
+            const langInstruction = `Please provide the final answer strictly in ${targetLang} language.`;
+            const finalPrompt = userPrompt + "\n\n" + rigidInstruction + "\n\n" + langInstruction;
 
             const base64Image = currentBase64.split(',')[1];
 
@@ -675,6 +702,7 @@
         const modal = document.getElementById('settings-modal');
         const inputApiKey = document.getElementById('api-key');
         const inputModel = document.getElementById('ai-model');
+        const inputLanguage = document.getElementById('ai-language');
         const inputPrompt = document.getElementById('ai-prompt');
         const inputDelay = document.getElementById('ai-delay');
         const inputInject = document.getElementById('ai-inject');
@@ -685,6 +713,7 @@
         function loadSettings() {
             inputApiKey.value = localStorage.getItem('geminiApiKey') || '';
             inputModel.value = localStorage.getItem('geminiModel') || 'gemini-2.5-flash';
+            inputLanguage.value = localStorage.getItem('geminiLanguage') || 'Indonesian';
             inputPrompt.value = localStorage.getItem('geminiPrompt') || '';
             inputDelay.value = localStorage.getItem('geminiDelay') || '3';
             inputInject.value = localStorage.getItem('geminiInjectVal') || '';
@@ -698,6 +727,7 @@
             if (!modelVal) modelVal = 'gemini-2.5-flash';
             localStorage.setItem('geminiModel', modelVal);
             
+            localStorage.setItem('geminiLanguage', inputLanguage.value);
             localStorage.setItem('geminiPrompt', inputPrompt.value.trim());
             localStorage.setItem('geminiDelay', inputDelay.value);
             localStorage.setItem('geminiInjectVal', inputInject.value.trim());
