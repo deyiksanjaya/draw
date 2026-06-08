@@ -363,6 +363,12 @@
             }).join(' ');
         }
 
+        function fillWhiteBackground() {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            emptyCanvasState = canvas.toDataURL('image/jpeg', 0.8);
+        }
+
         function resizeCanvas() {
             let tempState = null;
             if (canvas.width > 0 && canvas.height > 0) {
@@ -373,20 +379,13 @@
             canvas.height = canvasContainer.clientHeight;
             
             fillWhiteBackground();
+            strokeHistory = [];
 
             if (tempState) {
                 let img = new Image();
                 img.src = tempState;
                 img.onload = () => ctx.drawImage(img, 0, 0);
-            } else {
-                emptyCanvasState = canvas.toDataURL('image/jpeg', 0.8);
             }
-        }
-
-        function fillWhiteBackground() {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            emptyCanvasState = canvas.toDataURL('image/jpeg', 0.8);
         }
 
         window.addEventListener('resize', resizeCanvas);
@@ -451,6 +450,7 @@
                     tCtx.drawImage(img, 0, 0, 64, 64);
                     resolve(tCtx.getImageData(0, 0, 64, 64).data);
                 };
+                img.onerror = () => resolve(false);
                 img.src = base64;
             });
         }
@@ -461,6 +461,8 @@
 
             let data1 = await getImageDataFromBase64(base64_1);
             let data2 = await getImageDataFromBase64(base64_2);
+            
+            if (!data1 || !data2) return false;
 
             let diff = 0;
             for (let i = 0; i < data1.length; i += 4) {
@@ -490,7 +492,6 @@
                 if (similar) return;
             }
 
-            lastSubmittedState = currentBase64;
             const model = localStorage.getItem('geminiModel') || 'gemini-2.5-flash';
             let userPrompt = localStorage.getItem('geminiPrompt') || 'Jelaskan isi gambar';
             
@@ -517,13 +518,17 @@
                 
                 if (data.error) {
                     setAiReadyState(true, data.error.message, false);
+                    lastSubmittedState = '';
                 } else if (data.candidates && data.candidates[0].content.parts[0].text) {
                     setAiReadyState(true, data.candidates[0].content.parts[0].text, true);
+                    lastSubmittedState = currentBase64;
                 } else {
                     setAiReadyState(true, "Respon kosong", false);
+                    lastSubmittedState = '';
                 }
             } catch (err) {
                 setAiReadyState(true, "Koneksi bermasalah", false);
+                lastSubmittedState = '';
             }
         }
 
@@ -543,6 +548,7 @@
             if (currentMode === 'text') return;
             if (e.cancelable) e.preventDefault();
             
+            saveHistoryState();
             inputStartPos = getPos(e);
             inputStartTime = Date.now();
             hasMoved = false;
@@ -563,7 +569,6 @@
                 if (dx > 5 || dy > 5) {
                     hasMoved = true;
                     clearAiTimer();
-                    saveHistoryState();
                 } else {
                     return;
                 }
@@ -580,7 +585,7 @@
         }
 
         function handleInputEnd(e) {
-            if (!isDrawing && currentMode !== 'text') return;
+            if (!isDrawing) return;
             
             if (e.cancelable) e.preventDefault();
             isDrawing = false;
@@ -626,6 +631,9 @@
         colorPicker.addEventListener('input', (e) => {
             currentColor = e.target.value;
             colorDisplay.style.backgroundColor = currentColor;
+        });
+
+        colorPicker.addEventListener('change', (e) => {
             if (currentMode === 'text') {
                 updateToolUI(btnPen, 'pen');
             }
@@ -650,10 +658,14 @@
             clearAiTimer();
             saveHistoryState();
             fillWhiteBackground();
+            lastSubmittedState = '';
             startAiTimer();
         });
 
-        document.getElementById('btn-download').addEventListener('click', () => {
+        document.getElementById('btn-download').addEventListener('click', function() {
+            this.style.opacity = '0.5';
+            setTimeout(() => this.style.opacity = '1', 200);
+            
             const link = document.createElement('a');
             link.download = 'Export.jpeg';
             link.href = canvas.toDataURL('image/jpeg', 1.0);
@@ -699,13 +711,20 @@
             updateToolUI(btnPen, 'pen');
         });
 
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('active');
+                updateToolUI(btnPen, 'pen');
+            }
+        });
+
         btnSaveSettings.addEventListener('click', saveSettings);
 
         let pressTimer;
         
         function handlePressStart(e) {
-            updateToolUI(btnText, 'text');
             pressTimer = setTimeout(() => {
+                updateToolUI(btnText, 'text');
                 loadSettings();
                 modal.classList.add('active');
             }, 500);
